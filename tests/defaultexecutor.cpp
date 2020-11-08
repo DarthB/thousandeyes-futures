@@ -195,7 +195,8 @@ TEST_F(DefaultExecutorTest, ThenWithVoidInputWithoutException)
         return "OK";
     });
 
-    EXPECT_EQ("OK", f.get());
+    std::string expected = "OK";
+    EXPECT_EQ(expected, f.get());
 
     executor->stop();
 }

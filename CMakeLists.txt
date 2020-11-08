@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.11)
 
 project(thousandeyes-futures VERSION 0.1 LANGUAGES CXX)
 
+option(THOUSANDEYES_FUTURES_BUILD_EXAMPLES "Generate thousandeyes::futures with example projects" OFF)
+option(THOUSANDEYES_FUTURES_BUILD_TESTS "Generate thousandeyes::futures with unit tests" OFF)
+
 add_library(thousandeyes-futures INTERFACE)
 add_library(thousandeyes::futures ALIAS thousandeyes-futures)
 

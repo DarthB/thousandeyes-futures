@@ -31,6 +31,14 @@ future<T> getValueAsync(const T& value)
     });
 }
 
+template<class T>
+shared_future<T> getValueAsyncShared(const T& value)
+{
+	return async(launch::async, [value]() {
+		return value;
+		});
+}
+
 } // namespace
 
 int main(int argc, const char* argv[])
@@ -45,6 +53,14 @@ int main(int argc, const char* argv[])
     string result = f.get();
 
     cout << "Got result: " << result << endl;
+
+    f = then(getValueAsyncShared(1821), 
+        [](shared_future<int> f) -> std::string {
+        return to_string(f.get());
+    } );
+
+    result = f.get();
+    cout << "Got shared result: " << result << endl;
 
     executor->stop();
 }

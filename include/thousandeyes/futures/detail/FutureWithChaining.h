@@ -21,12 +21,12 @@ namespace thousandeyes {
 namespace futures {
 namespace detail {
 
-template<class TIn, class TOut, class TFunc>
+template<class TFuture, class TOut, class TFunc>
 class FutureWithChaining : public TimedWaitable {
 public:
     FutureWithChaining(std::chrono::microseconds waitLimit,
                        std::weak_ptr<Executor> executor,
-                       std::future<TIn> f,
+                       TFuture f,
                        std::promise<TOut> p,
                        TFunc&& cont) :
         TimedWaitable(std::move(waitLimit)),
@@ -71,7 +71,7 @@ public:
 
 private:
     std::weak_ptr<Executor> executor_;
-    std::future<TIn> f_;
+    TFuture f_;
     std::promise<TOut> p_;
     TFunc cont_;
 };

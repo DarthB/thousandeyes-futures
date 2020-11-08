@@ -25,12 +25,12 @@ namespace thousandeyes {
 namespace futures {
 
 //! \brief SFINAE meta-type that resolves to the continuation's return type.
-template<class TIn, class TFunc>
+template<class TFuture, class TFunc>
 using cont_returns_value_t =
     typename std::enable_if<
         !detail::is_template<
             typename std::result_of<
-                typename std::decay<TFunc>::type(std::future<TIn>)
+                typename std::decay<TFunc>::type(TFuture)
             >::type
         >::value ||
         !std::is_same<
@@ -38,17 +38,17 @@ using cont_returns_value_t =
                 typename detail::nth_template_param<
                     0,
                     typename std::result_of<
-                        typename std::decay<TFunc>::type(std::future<TIn>)
+                        typename std::decay<TFunc>::type(TFuture)
                     >::type
                 >::type
             >,
             typename std::result_of<
-                typename std::decay<TFunc>::type(std::future<TIn>)
+                typename std::decay<TFunc>::type(TFuture)
             >::type
         >::value,
         std::future<
             typename std::result_of<
-                typename std::decay<TFunc>::type(std::future<TIn>)
+                typename std::decay<TFunc>::type(TFuture)
             >::type
         >
     >::type;
@@ -71,21 +71,21 @@ using cont_returns_value_t =
 //!
 //! \return An std::future<value> that contains the value returned by the given
 //! continuation function.
-template<class TIn, class TFunc>
-cont_returns_value_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
+template<class TFuture, class TFunc>
+cont_returns_value_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
                                       std::chrono::microseconds timeLimit,
-                                      std::future<TIn> f,
+                                      TFuture f,
                                       TFunc&& cont)
 {
     using TOut = typename std::result_of<
-            typename std::decay<TFunc>::type(std::future<TIn>)
+            typename std::decay<TFunc>::type(TFuture)
         >::type;
 
     std::promise<TOut> p;
 
     auto result = p.get_future();
 
-    executor->watch(std::make_unique<detail::FutureWithContinuation<TIn, TOut, TFunc>>(
+    executor->watch(std::make_unique<detail::FutureWithContinuation<TFuture, TOut, TFunc>>(
         std::move(timeLimit),
         std::move(f),
         std::move(p),
@@ -112,12 +112,12 @@ cont_returns_value_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
 //!
 //! \return An std::future<value> that contains the value returned by the given
 //! continuation function.
-template<class TIn, class TFunc>
-cont_returns_value_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
-                                      std::future<TIn> f,
+template<class TFuture, class TFunc>
+cont_returns_value_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
+                                      TFuture f,
                                       TFunc&& cont)
 {
-    return then<TIn, TFunc>(std::move(executor),
+    return then<TFuture, TFunc>(std::move(executor),
                             std::chrono::hours(1),
                             std::move(f),
                             std::forward<TFunc>(cont));
@@ -142,12 +142,12 @@ cont_returns_value_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
 //!
 //! \return An std::future<value> that contains the value returned by the given
 //! continuation function.
-template<class TIn, class TFunc>
-cont_returns_value_t<TIn, TFunc> then(std::chrono::microseconds timeLimit,
-                                      std::future<TIn> f,
+template<class TFuture, class TFunc>
+cont_returns_value_t<TFuture,  TFunc> then(std::chrono::microseconds timeLimit,
+                                      TFuture f,
                                       TFunc&& cont)
 {
-    return then<TIn, TFunc>(Default<Executor>(),
+    return then<TFuture, TFunc>(Default<Executor>(),
                             std::move(timeLimit),
                             std::move(f),
                             std::forward<TFunc>(cont));
@@ -171,22 +171,22 @@ cont_returns_value_t<TIn, TFunc> then(std::chrono::microseconds timeLimit,
 //!
 //! \return An std::future<value> that contains the value returned by the given
 //! continuation function.
-template<class TIn, class TFunc>
-cont_returns_value_t<TIn, TFunc> then(std::future<TIn> f,
+template<class TFuture, class TFunc>
+cont_returns_value_t<TFuture, TFunc> then(TFuture f,
                                       TFunc&& cont)
 {
-    return then<TIn, TFunc>(std::chrono::hours(1),
+    return then<TFuture, TFunc>(std::chrono::hours(1),
                             std::move(f),
                             std::forward<TFunc>(cont));
 }
 
 //! \brief SFINAE meta-type that resolves to the continuation's return future type.
-template<class TIn, class TFunc>
+template<class TFuture, class TFunc>
 using cont_returns_future_t =
     typename std::enable_if<
         detail::is_template<
             typename std::result_of<
-                typename std::decay<TFunc>::type(std::future<TIn>)
+                typename std::decay<TFunc>::type(TFuture)
             >::type
         >::value &&
         std::is_same<
@@ -194,16 +194,16 @@ using cont_returns_future_t =
                 typename detail::nth_template_param<
                     0,
                     typename std::result_of<
-                        typename std::decay<TFunc>::type(std::future<TIn>)
+                        typename std::decay<TFunc>::type(TFuture)
                     >::type
                 >::type
             >,
             typename std::result_of<
-                typename std::decay<TFunc>::type(std::future<TIn>)
+                typename std::decay<TFunc>::type(TFuture)
             >::type
         >::value,
         typename std::result_of<
-            typename std::decay<TFunc>::type(std::future<TIn>)
+            typename std::decay<TFunc>::type(TFuture)
         >::type
     >::type;
 
@@ -226,16 +226,16 @@ using cont_returns_future_t =
 //!
 //! \return An std::future<value> that contains the value contained in the future
 //! returned by the given continuation function.
-template<class TIn, class TFunc>
-cont_returns_future_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
+template<class TFuture, class TFunc>
+cont_returns_future_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
                                        std::chrono::microseconds timeLimit,
-                                       std::future<TIn> f,
+                                       TFuture f,
                                        TFunc&& cont)
 {
     using TOut = typename detail::nth_template_param<
             0,
             typename std::result_of<
-                typename std::decay<TFunc>::type(std::future<TIn>)
+                typename std::decay<TFunc>::type(TFuture)
             >::type
         >::type;
 
@@ -243,7 +243,7 @@ cont_returns_future_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
 
     auto result = p.get_future();
 
-    executor->watch(std::make_unique<detail::FutureWithChaining<TIn, TOut, TFunc>>(
+    executor->watch(std::make_unique<detail::FutureWithChaining<TFuture, TOut, TFunc>>(
         std::move(timeLimit),
         executor,
         std::move(f),
@@ -272,12 +272,12 @@ cont_returns_future_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
 //!
 //! \return An std::future<value> that contains the value contained in the future
 //! returned by the given continuation function.
-template<class TIn, class TFunc>
-cont_returns_future_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
-                                       std::future<TIn> f,
+template<class TFuture, class TFunc>
+cont_returns_future_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
+                                       TFuture f,
                                        TFunc&& cont)
 {
-    return then<TIn, TFunc>(std::move(executor),
+    return then<TFuture, TFunc>(std::move(executor),
                             std::chrono::hours(1),
                             std::move(f),
                             std::forward<TFunc>(cont));
@@ -304,12 +304,12 @@ cont_returns_future_t<TIn, TFunc> then(std::shared_ptr<Executor> executor,
 //!
 //! \return An std::future<value> that contains the value contained in the future
 //! returned by the given continuation function.
-template<class TIn, class TFunc>
-cont_returns_future_t<TIn, TFunc> then(std::chrono::microseconds timeLimit,
-                                       std::future<TIn> f,
+template<class TFuture, class TFunc>
+cont_returns_future_t<TFuture, TFunc> then(std::chrono::microseconds timeLimit,
+                                       TFuture f,
                                        TFunc&& cont)
 {
-    return then<TIn, TFunc>(Default<Executor>(),
+    return then<TFuture, TFunc>(Default<Executor>(),
                             std::move(timeLimit),
                             std::move(f),
                             std::forward<TFunc>(cont));
@@ -335,11 +335,11 @@ cont_returns_future_t<TIn, TFunc> then(std::chrono::microseconds timeLimit,
 //!
 //! \return An std::future<value> that contains the value contained in the future
 //! returned by the given continuation function.
-template<class TIn, class TFunc>
-cont_returns_future_t<TIn, TFunc> then(std::future<TIn> f,
+template<class TFuture, class TFunc>
+cont_returns_future_t<TFuture, TFunc> then(TFuture f,
                                        TFunc&& cont)
 {
-    return then<TIn, TFunc>(std::chrono::hours(1),
+    return then<TFuture, TFunc>(std::chrono::hours(1),
                             std::move(f),
                             std::forward<TFunc>(cont));
 }

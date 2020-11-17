@@ -40,6 +40,15 @@ struct nth_param<0, T, P...>
     using type = T;
 };
 
+template <typename S>
+struct signature {};
+
+template <typename R, typename Arg>
+struct signature<R(Arg)> {
+    using return_type = R;
+    using arg_type = Arg;
+};
+
 // nth_template_param
 
 template <int N, class C>

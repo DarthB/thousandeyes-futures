@@ -24,31 +24,64 @@
 namespace thousandeyes {
 namespace futures {
 
+//! \brief type trait that checks if the return value of a continuation function is encapsulated in a future
+template<class TIn, class TFunc>
+using is_res_encapsulated_in_future =
+    std::is_same<
+        std::future<
+            typename detail::nth_template_param<
+                0,
+                typename std::result_of<
+                    typename std::decay<TFunc>::type(std::future<TIn>)
+                >::type
+            >::type
+        >
+        ,
+        typename std::result_of<
+            typename std::decay<TFunc>::type(std::future<TIn>)
+        >::type
+    >;
+
+//! \brief type trait that checks if the return value of a continuation function is encapsulated in a shared_future
+template<class TIn, class TFunc>
+using is_res_encapsulated_in_shared_future =
+    std::is_same<
+	    std::shared_future<
+	        typename detail::nth_template_param<
+	            0,
+	            typename std::result_of<
+	                typename std::decay<TFunc>::type(std::shared_future<TIn>)
+	            >::type
+	        >::type
+	    >
+	    ,
+	    typename std::result_of<
+	        typename std::decay<TFunc>::type(std::shared_future<TIn>)
+	    >::type
+    >;
+
+// std::invocable only usable by C++17 therefore go with is_convertible as future cannot converted implicity to shared_future
 //! \brief SFINAE meta-type that resolves to the continuation's return type.
-template<class TFuture, class TFunc>
+template<class TIn, class TFunc>
 using cont_returns_value_t =
     typename std::enable_if<
-        !detail::is_template<
-            typename std::result_of<
-                typename std::decay<TFunc>::type(TFuture)
-            >::type
-        >::value ||
-        !std::is_same<
-            std::future<
-                typename detail::nth_template_param<
-                    0,
-                    typename std::result_of<
-                        typename std::decay<TFunc>::type(TFuture)
-                    >::type
+        std::is_invocable<
+            TFunc, std::future<TIn>
+        >::value
+        &&
+        (
+            !detail::is_template<
+                typename std::result_of<
+                    typename std::decay<TFunc>::type(std::future<TIn>)
                 >::type
-            >,
-            typename std::result_of<
-                typename std::decay<TFunc>::type(TFuture)
-            >::type
-        >::value,
+            >::value 
+            || 
+            !is_res_encapsulated_in_future<TIn, TFunc>::value
+        )
+        ,
         std::future<
             typename std::result_of<
-                typename std::decay<TFunc>::type(TFuture)
+                typename std::decay<TFunc>::type(std::future<TIn>)
             >::type
         >
     >::type;
@@ -72,7 +105,10 @@ using cont_returns_value_t =
 //! \return An std::future<value> that contains the value returned by the given
 //! continuation function.
 template<class TFuture, class TFunc>
-cont_returns_value_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
+cont_returns_value_t<
+    typename detail::nth_template_param<0, TFuture>::type, 
+    TFunc
+> then(std::shared_ptr<Executor> executor,
                                       std::chrono::microseconds timeLimit,
                                       TFuture f,
                                       TFunc&& cont)
@@ -82,7 +118,6 @@ cont_returns_value_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
         >::type;
 
     std::promise<TOut> p;
-
     auto result = p.get_future();
 
     executor->watch(std::make_unique<detail::FutureWithContinuation<TFuture, TOut, TFunc>>(
@@ -113,7 +148,10 @@ cont_returns_value_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
 //! \return An std::future<value> that contains the value returned by the given
 //! continuation function.
 template<class TFuture, class TFunc>
-cont_returns_value_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
+cont_returns_value_t < 
+    typename detail::nth_template_param<0, TFuture>::type,
+    TFunc > 
+    then(std::shared_ptr<Executor> executor,
                                       TFuture f,
                                       TFunc&& cont)
 {
@@ -143,7 +181,10 @@ cont_returns_value_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
 //! \return An std::future<value> that contains the value returned by the given
 //! continuation function.
 template<class TFuture, class TFunc>
-cont_returns_value_t<TFuture,  TFunc> then(std::chrono::microseconds timeLimit,
+cont_returns_value_t<
+    typename detail::nth_template_param<0, TFuture>::type,
+    TFunc> 
+    then(std::chrono::microseconds timeLimit,
                                       TFuture f,
                                       TFunc&& cont)
 {
@@ -172,7 +213,8 @@ cont_returns_value_t<TFuture,  TFunc> then(std::chrono::microseconds timeLimit,
 //! \return An std::future<value> that contains the value returned by the given
 //! continuation function.
 template<class TFuture, class TFunc>
-cont_returns_value_t<TFuture, TFunc> then(TFuture f,
+cont_returns_value_t<
+    typename detail::nth_template_param<0, TFuture>::type, TFunc> then(TFuture f,
                                       TFunc&& cont)
 {
     return then<TFuture, TFunc>(std::chrono::hours(1),
@@ -180,30 +222,173 @@ cont_returns_value_t<TFuture, TFunc> then(TFuture f,
                             std::forward<TFunc>(cont));
 }
 
-//! \brief SFINAE meta-type that resolves to the continuation's return future type.
+//! \brief SFINAE meta-type that resolves to the continuation's return type.
+template<class TIn, class TFunc>
+using cont_returns_shared_value_t =
+    typename std::enable_if<
+	    !detail::is_template<
+	        typename std::result_of<
+	            typename std::decay<TFunc>::type(std::shared_future<TIn>)
+	        >::type
+	    >::value ||
+	    !is_res_encapsulated_in_shared_future<TIn, TFunc>::value
+	    ,
+	    std::shared_future<
+	        typename std::result_of<
+	            typename std::decay<TFunc>::type(std::shared_future<TIn>)
+	        >::type
+	    >
+    >::type;
+
+//! \brief Creates a future that becomes ready when the input future becomes ready.
+//!
+//! \par The resulting future contains the value returned by invoking the given
+//! continuation function.
+//!
+//! \param executor The object that waits for the given future to become ready.
+//! \param timeLimit The maximum time to wait for the given future to become ready.
+//! \param f The input future to wait and invoke the continuation function on.
+//! \param cont The continuation function to invoke on the ready input future.
+//!
+//! \note If the total time for waiting the input future to become ready exceeds the
+//! given timeLimit, the resulting future becomes ready with an exception of type
+//! WaitableTimedOutException.
+//!
+//! \sa WaitableTimedOutException
+//!
+//! \return An std::future<value> that contains the value returned by the given
+//! continuation function.
 template<class TFuture, class TFunc>
+cont_returns_shared_value_t<
+	typename detail::nth_template_param<0, TFuture>::type,
+	TFunc
+> then(std::shared_ptr<Executor> executor,
+	std::chrono::microseconds timeLimit,
+	TFuture f,
+	TFunc&& cont)
+{
+	using TOut = typename std::result_of<
+		typename std::decay<TFunc>::type(TFuture)
+	>::type;
+
+	std::promise<TOut> p;
+	auto result = p.get_future().share();
+
+	executor->watch(std::make_unique<detail::FutureWithContinuation<TFuture, TOut, TFunc>>(
+		std::move(timeLimit),
+		std::move(f),
+		std::move(p),
+		std::forward<TFunc>(cont)
+		));
+
+	return result;
+}
+
+//! \brief Creates a future that becomes ready when the input future becomes ready.
+//!
+//! \par The resulting future contains the value returned by invoking the given
+//! continuation function.
+//!
+//! \param executor The object that waits for the given future to become ready.
+//! \param f The input future to wait and invoke the continuation function on.
+//! \param cont The continuation function to invoke on the ready input future.
+//!
+//! \note If the total time for waiting the input future to become ready exceeds
+//! a maximum threshold defined by the library (typically 1h), the resulting future
+//! becomes ready with an exception of type WaitableTimedOutException.
+//!
+//! \sa WaitableTimedOutException
+//!
+//! \return An std::future<value> that contains the value returned by the given
+//! continuation function.
+template<class TFuture, class TFunc>
+cont_returns_shared_value_t <
+	typename detail::nth_template_param<0, TFuture>::type,
+	TFunc >
+	then(std::shared_ptr<Executor> executor,
+		TFuture f,
+		TFunc&& cont)
+{
+	return then<TFuture, TFunc>(std::move(executor),
+		std::chrono::hours(1),
+		std::move(f),
+		std::forward<TFunc>(cont));
+}
+
+//! \brief Creates a future that becomes ready when the input future becomes ready.
+//!
+//! \par The resulting future contains the value returned by invoking the given
+//! continuation function. This function uses the default Executor
+//! object to wait for the given futures to become ready. If there isn't any default
+//! Executor object registered, this function's behavior is undefined.
+//!
+//! \param timeLimit The maximum time to wait for the given future to become ready.
+//! \param f The input future to wait and invoke the continuation function on.
+//! \param cont The continuation function to invoke on the ready input future.
+//!
+//! \note If the total time for waiting the input future to become ready exceeds the
+//! given timeLimit, the resulting future becomes ready with an exception of type
+//! WaitableTimedOutException.
+//!
+//! \sa Default, WaitableTimedOutException
+//!
+//! \return An std::future<value> that contains the value returned by the given
+//! continuation function.
+template<class TFuture, class TFunc>
+cont_returns_shared_value_t<
+	typename detail::nth_template_param<0, TFuture>::type,
+	TFunc>
+	then(std::chrono::microseconds timeLimit,
+		TFuture f,
+		TFunc&& cont)
+{
+	return then<TFuture, TFunc>(Default<Executor>(),
+		std::move(timeLimit),
+		std::move(f),
+		std::forward<TFunc>(cont));
+}
+
+//! \brief Creates a future that becomes ready when the input future becomes ready.
+//!
+//! \par The resulting future contains the value returned by invoking the given
+//! continuation function. This function uses the default Executor
+//! object to wait for the given futures to become ready. If there isn't any default
+//! Executor object registered, this function's behavior is undefined.
+//!
+//! \param f The input future to wait and invoke the continuation function on.
+//! \param cont The continuation function to invoke on the ready input future.
+//!
+//! \note If the total time for waiting the input future to become ready exceeds
+//! a maximum threshold defined by the library (typically 1h), the resulting future
+//! becomes ready with an exception of type WaitableTimedOutException.
+//!
+//! \sa Default, WaitableTimedOutException
+//!
+//! \return An std::future<value> that contains the value returned by the given
+//! continuation function.
+template<class TFuture, class TFunc>
+cont_returns_shared_value_t<
+	typename detail::nth_template_param<0, TFuture>::type, TFunc> then(TFuture f,
+		TFunc&& cont)
+{
+	return then<TFuture, TFunc>(std::chrono::hours(1),
+		std::move(f),
+		std::forward<TFunc>(cont));
+}
+
+//! \brief SFINAE meta-type that resolves to the continuation's return future type.
+template<class TIn, class TFunc>
 using cont_returns_future_t =
     typename std::enable_if<
         detail::is_template<
             typename std::result_of<
-                typename std::decay<TFunc>::type(TFuture)
+                typename std::decay<TFunc>::type(std::future<TIn>)
             >::type
         >::value &&
-        std::is_same<
-            std::future<
-                typename detail::nth_template_param<
-                    0,
-                    typename std::result_of<
-                        typename std::decay<TFunc>::type(TFuture)
-                    >::type
-                >::type
-            >,
-            typename std::result_of<
-                typename std::decay<TFunc>::type(TFuture)
-            >::type
-        >::value,
+        is_res_encapsulated_in_future<TIn, TFunc>::value
+        ,
         typename std::result_of<
-            typename std::decay<TFunc>::type(TFuture)
+            typename std::decay<TFunc>::type(std::future<TIn>)
         >::type
     >::type;
 
@@ -227,7 +412,10 @@ using cont_returns_future_t =
 //! \return An std::future<value> that contains the value contained in the future
 //! returned by the given continuation function.
 template<class TFuture, class TFunc>
-cont_returns_future_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
+cont_returns_future_t<
+    typename detail::nth_template_param<0, TFuture>::type,
+    TFunc
+> then(std::shared_ptr<Executor> executor,
                                        std::chrono::microseconds timeLimit,
                                        TFuture f,
                                        TFunc&& cont)
@@ -273,7 +461,10 @@ cont_returns_future_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
 //! \return An std::future<value> that contains the value contained in the future
 //! returned by the given continuation function.
 template<class TFuture, class TFunc>
-cont_returns_future_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
+cont_returns_future_t<
+    typename detail::nth_template_param<0, TFuture>::type, 
+    TFunc
+> then(std::shared_ptr<Executor> executor,
                                        TFuture f,
                                        TFunc&& cont)
 {
@@ -305,7 +496,10 @@ cont_returns_future_t<TFuture, TFunc> then(std::shared_ptr<Executor> executor,
 //! \return An std::future<value> that contains the value contained in the future
 //! returned by the given continuation function.
 template<class TFuture, class TFunc>
-cont_returns_future_t<TFuture, TFunc> then(std::chrono::microseconds timeLimit,
+cont_returns_future_t<
+    typename detail::nth_template_param<0, TFuture>::type,
+    TFunc
+> then(std::chrono::microseconds timeLimit,
                                        TFuture f,
                                        TFunc&& cont)
 {
@@ -336,12 +530,179 @@ cont_returns_future_t<TFuture, TFunc> then(std::chrono::microseconds timeLimit,
 //! \return An std::future<value> that contains the value contained in the future
 //! returned by the given continuation function.
 template<class TFuture, class TFunc>
-cont_returns_future_t<TFuture, TFunc> then(TFuture f,
+cont_returns_future_t<
+    typename detail::nth_template_param<0, TFuture>::type,
+    TFunc
+> then(TFuture f,
                                        TFunc&& cont)
 {
     return then<TFuture, TFunc>(std::chrono::hours(1),
                             std::move(f),
                             std::forward<TFunc>(cont));
+}
+
+//! \brief SFINAE meta-type that resolves to the continuation's return future type.
+template<class TIn, class TFunc>
+using cont_returns_shared_future_t =
+    typename std::enable_if<
+	    detail::is_template<
+	        typename std::result_of<
+	            typename std::decay<TFunc>::type(std::shared_future<TIn>)
+	        >::type
+	    >::value &&
+	    is_res_encapsulated_in_shared_future<TIn, TFunc>::value
+        ,
+	    typename std::result_of<
+	        typename std::decay<TFunc>::type(std::shared_future<TIn>)
+	    >::type
+    > ::type;
+
+//! \brief Creates a future that becomes ready when both the input future and the
+//! continuation future become ready.
+//!
+//! \par The resulting future contains the value contained in the future obtained
+//! by invoking the given continuation function on the ready input future.
+//!
+//! \param executor The object that waits for the futures to become ready.
+//! \param timeLimit The maximum time to wait for both futures to become ready.
+//! \param f The input future to wait and invoke the continuation function on.
+//! \param cont The continuation function to invoke on the ready input future.
+//!
+//! \note If the total time for waiting the futures to become ready exceeds the
+//! given timeLimit, the resulting future becomes ready with an exception of type
+//! WaitableTimedOutException.
+//!
+//! \sa WaitableTimedOutException
+//!
+//! \return An std::future<value> that contains the value contained in the future
+//! returned by the given continuation function.
+template<class TFuture, class TFunc>
+cont_returns_shared_future_t<
+	typename detail::nth_template_param<0, TFuture>::type,
+	TFunc
+> then(std::shared_ptr<Executor> executor,
+	std::chrono::microseconds timeLimit,
+	TFuture f,
+	TFunc&& cont)
+{
+	using TOut = typename detail::nth_template_param<
+		0,
+		typename std::result_of<
+		    typename std::decay<TFunc>::type(TFuture)
+		>::type
+	>::type;
+
+	std::promise<TOut> p;
+	auto result = p.get_future().share();
+
+	executor->watch(std::make_unique<detail::FutureWithChaining<TFuture, TOut, TFunc>>(
+		std::move(timeLimit),
+		executor,
+		std::move(f),
+		std::move(p),
+		std::forward<TFunc>(cont)
+		));
+
+	return result;
+}
+
+//! \brief Creates a future that becomes ready when both the input future and the
+//! continuation future become ready.
+//!
+//! \par The resulting future contains the value contained in the future obtained
+//! by invoking the given continuation function on the ready input future.
+//!
+//! \param executor The object that waits for the futures to become ready.
+//! \param f The input future to wait and invoke the continuation function on.
+//! \param cont The continuation function to invoke on the ready input future.
+//!
+//! \note If the total time for waiting the input future to become ready exceeds
+//! a maximum threshold defined by the library (typically 1h), the resulting future
+//! becomes ready with an exception of type WaitableTimedOutException.
+//!
+//! \sa WaitableTimedOutException
+//!
+//! \return An std::future<value> that contains the value contained in the future
+//! returned by the given continuation function.
+template<class TFuture, class TFunc>
+cont_returns_shared_future_t<
+	typename detail::nth_template_param<0, TFuture>::type,
+	TFunc
+> then(std::shared_ptr<Executor> executor,
+	TFuture f,
+	TFunc&& cont)
+{
+	return then<TFuture, TFunc>(std::move(executor),
+		std::chrono::hours(1),
+		std::move(f),
+		std::forward<TFunc>(cont));
+}
+
+//! \brief Creates a future that becomes ready when both the input future and the
+//! continuation future become ready.
+//!
+//! \par The resulting future contains the value contained in the future obtained
+//! by invoking the given continuation function on the ready input future. This
+//! function uses the default Executor object to wait for the futures
+//! to become ready. If there isn't any default Executor object registered,
+//! this function's behavior is undefined.
+//!
+//! \param timeLimit The maximum time to wait for both futures to become ready.
+//! \param f The input future to wait and invoke the continuation function on.
+//! \param cont The continuation function to invoke on the ready input future.
+//!
+//! \note If the total time for waiting the futures to become ready exceeds the
+//! given timeLimit, the resulting future becomes ready with an exception of type
+//! WaitableTimedOutException.
+//!
+//! \sa Default, WaitableTimedOutException
+//!
+//! \return An std::future<value> that contains the value contained in the future
+//! returned by the given continuation function.
+template<class TFuture, class TFunc>
+cont_returns_shared_future_t<
+	typename detail::nth_template_param<0, TFuture>::type,
+	TFunc
+> then(std::chrono::microseconds timeLimit,
+	TFuture f,
+	TFunc&& cont)
+{
+	return then<TFuture, TFunc>(Default<Executor>(),
+		std::move(timeLimit),
+		std::move(f),
+		std::forward<TFunc>(cont));
+}
+
+//! \brief Creates a future that becomes ready when both the input future and the
+//! continuation future become ready.
+//!
+//! \par The resulting future contains the value contained in the future obtained
+//! by invoking the given continuation function on the ready input future. This
+//! function uses the default Executor object to wait for the futures
+//! to become ready. If there isn't any default Executor object registered,
+//! this function's behavior is undefined.
+//!
+//! \param f The input future to wait and invoke the continuation function on.
+//! \param cont The continuation function to invoke on the ready input future.
+//!
+//! \note If the total time for waiting the input future to become ready exceeds
+//! a maximum threshold defined by the library (typically 1h), the resulting future
+//! becomes ready with an exception of type WaitableTimedOutException.
+//!
+//! \sa Default, WaitableTimedOutException
+//!
+//! \return An std::future<value> that contains the value contained in the future
+//! returned by the given continuation function.
+template<class TFuture, class TFunc>
+cont_returns_shared_future_t<
+	typename detail::nth_template_param<0, TFuture>::type,
+	TFunc
+> then(TFuture f,
+	TFunc&& cont)
+{
+	return then<TFuture, TFunc>(std::chrono::hours(1),
+		std::move(f),
+		std::forward<TFunc>(cont));
 }
 
 } // namespace futures

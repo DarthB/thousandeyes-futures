@@ -54,7 +54,7 @@ int main(int argc, const char* argv[])
     cout << "Got result: " << result << endl;
 
     // test cont_returns_future_t
-    auto f2 = then(getValueAsync(1821), [](future<int> f) -> future<string> {
+    auto f2 = then(getValueAsync(1821), [](future<int> f) {
         auto val = f.get();
         return async(launch::async, [val]() {
                 return to_string(val);
@@ -72,7 +72,7 @@ int main(int argc, const char* argv[])
 	cout << "Got shared result: " << result << endl;
 
 	// test cont_returns_shared_future_t
-	auto f4 = then(getValueAsync(1821), [](shared_future<int> f) -> shared_future<string> {
+	auto f4 = then(getValueAsync(1821).share(), [](shared_future<int> f) {
 	auto val = f.get();
 	    return async(launch::async, [val]() {
 			return to_string(val);

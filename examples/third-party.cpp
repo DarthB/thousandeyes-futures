@@ -162,13 +162,13 @@ public:
 			return costs;
 			});
 
-		auto futStr = then(futCosts.share(), [](shared_future<double> c) {
+		auto futStr = then(futCosts, [](shared_future<double> c) {
 			stringstream str;
 			str << "The costs of this equipment configuration is '" << c.get() << "'";
 			return str.str();
 			});
 
-		return futStr.share();
+		return futStr;
     }
 
     void worker_function() {
@@ -259,11 +259,12 @@ int main(int argc, const char* argv[])
 
     // simulate 5 times
     auto& coutMut = g_coutMut;
-    vector<future<void>> container;
+    vector<shared_future<void>> container;
     for (int i = 0; i < 5; ++i) {
         auto res = then(evaluator.evaluate(), [&coutMut,i](std::shared_future<string> f){
             lock_guard<mutex> lock(g_coutMut);
             cout << "Done (" << i + 1 << ")> " << f.get() << endl;
+            return;
         });
         container.emplace_back(move(res));
     }

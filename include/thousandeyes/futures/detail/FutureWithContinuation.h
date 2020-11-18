@@ -19,11 +19,11 @@ namespace thousandeyes {
 namespace futures {
 namespace detail {
 
-template<class TFuture, class TOut, class TFunc>
+template<template<typename> typename TFuture, class TIn, class TOut, class TFunc>
 class FutureWithContinuation : public TimedWaitable {
 public:
     FutureWithContinuation(std::chrono::microseconds waitLimit,
-                           TFuture f,
+                           TFuture<TIn> f,
                            std::promise<TOut> p,
                            TFunc&& cont) :
         TimedWaitable(std::move(waitLimit)),
@@ -59,18 +59,18 @@ public:
     }
 
 private:
-    TFuture f_;
+    TFuture<TIn> f_;
     std::promise<TOut> p_;
     TFunc cont_;
 };
 
 // Partial specialization for void output type
 
-template<class TFuture, class TFunc>
-class FutureWithContinuation<TFuture, void, TFunc> : public TimedWaitable {
+template<template<typename> typename TFuture, class TIn, class TFunc>
+class FutureWithContinuation<TFuture, TIn, void, TFunc> : public TimedWaitable {
 public:
     FutureWithContinuation(std::chrono::microseconds waitLimit,
-                           TFuture f,
+                           TFuture<TIn> f,
                            std::promise<void> p,
                            TFunc&& cont) :
         TimedWaitable(std::move(waitLimit)),
@@ -107,7 +107,7 @@ public:
     }
 
 private:
-    TFuture f_;
+    TFuture<TIn> f_;
     std::promise<void> p_;
     TFunc cont_;
 };

@@ -12,7 +12,7 @@ function(add_example _file)
                           PRIVATE ${CMAKE_THREAD_LIBS_INIT}
                           PRIVATE thousandeyes::futures)
 
-    set_target_properties(${_target} PROPERTIES CXX_STANDARD 17)
+    set_target_properties(${_target} PROPERTIES CXX_STANDARD 14)
 endfunction(add_example)
 
 add_example(chaining.cpp)
